@@ -54,239 +54,6 @@ public class OnionServiceInfo extends AppCompatActivity {
         new SocketActivities().execute(onionAddr, onionPortRaw);
     }
 
-    private ServerSocket getSocketAddress(int port) {
-        InetSocketAddress addr = new InetSocketAddress("127.0.0.1", port);
-        try {
-            ServerSocket sock = new ServerSocket();
-            sock.bind(addr);
-            return sock;
-        } catch (SecurityException e) {
-            //OToaster.createToast(getApplicationContext(), "SecurityException during bind()");
-            System.out.println("Received SecurityException from getSocketAddress()");
-            e.printStackTrace();
-            return null;
-        } catch (IllegalArgumentException e) {
-            /* This should never happen */
-            //OToaster.createToast(getApplicationContext(), "IllegalArgumentException during bind()");
-            System.out.println("Received IllegalArgumentException from getSocketAddress()");
-            e.printStackTrace();
-            return null;
-        } catch (BindException e) {
-            System.out.println("Received BindException from getSocketAddress()" +
-                " probably already ran. Keep going.");
-        } catch (IOException e) {
-            //OToaster.createToast(getApplicationContext(), "IOException during bind()");
-            System.out.println("Received IOException from getSocketAddress()");
-            //ActivityCompat.requestPermissions(this, new String[]{Manifest.class.});
-            e.printStackTrace();
-            return null;
-        }
-        return null;
-    }
-
-    private Socket createSocksConnection(String host, int port,
-                                         String onionAddr, int onionPort) {
-        //Proxy socksOr = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
-        //Socket sock = new Socket(socksOr);
-        Socket sock = new Socket();
-        try {
-            System.out.println("Initiating connection to Tor");
-            sock.connect(new InetSocketAddress(host, port));
-            System.out.println("Socket connected, starting SOCKS");
-            //OToaster.createToast(getApplicationContext(), "We connected to Tor's SOCKS port!");
-            if (!socks5Init(sock)) {
-                System.out.println("socks5Init returned false");
-                //OToaster.createToast(getApplicationContext(), "Initial message with Tor failed");
-                return null;
-            }
-            System.out.println("Requesting SOCKS CONNECT");
-            if (socks5Connect(sock, onionAddr, onionPort) != null) {
-                System.out.println("socks5Connect returned false");
-                return null;
-            }
-            //sock.connect(new InetSocketAddress(onionAddr, onionPort));
-        } catch (IllegalBlockingModeException e) {
-            System.out.println("Received IllegalBlockingModeException from createSocksConnection()");
-            //OToaster.createToast(getApplicationContext(), "IllegalBlockingModeException during connect()");
-            e.printStackTrace();
-            return null;
-        } catch (IllegalArgumentException e) {
-            System.out.println("Received IllegalArgumentException from createSocksConnection()");
-            //OToaster.createToast(getApplicationContext(), "IllegalArgumentException during connect()");
-            e.printStackTrace();
-            return null;
-        } catch (IOException e) {
-            System.out.println("Received IOException from createSocksConnection()");
-            //OToaster.createToast(getApplicationContext(), "IOException during connect()");
-            e.printStackTrace();
-            return null;
-        }
-        return sock;
-    }
-
-    private String sendPing(Socket onionSock) {
-        try {
-            OutputStream os = onionSock.getOutputStream();
-            os.write(new byte[]{'p','i','n','g'});
-            os.flush();
-            return null;
-        } catch (IOException e) {
-            return "IOException during waitForPing()";
-        }
-    }
-
-    private String waitForPing(ServerSocket ss) {
-        byte[] ping = new byte[4];
-        try {
-            ss.setSoTimeout(20);
-            Socket client = ss.accept();
-            System.out.println("Got connection on onion!");
-            InputStream is = client.getInputStream();
-            OutputStream os = client.getOutputStream();
-
-            Vector<Byte> response = new Vector<>();
-            while (response.size() < 4 && is.read(ping) != -1) {
-                for (Byte b : ping)
-                    response.add(b);
-                System.out.println("ping:");
-                for (byte b : ping) {
-                    System.out.println(b);
-                }
-                System.out.println("Done.");
-            }
-            System.out.println("Sending pong");
-            os.write(new byte[]{'p','o','n','g'});
-            return null;
-        } catch (SocketException e) {
-            return "SocketException during waitForPing()";
-        } catch (IOException e) {
-           return "IOException during waitForPing()";
-        }
-    }
-
-    private String waitForPong(Socket onionSock) {
-        byte[] pong = new byte[4];
-        try {
-            InputStream is = onionSock.getInputStream();
-            Vector<Byte> response = new Vector<>();
-            while (response.size() < 4 && is.read(pong) != -1) {
-                for (Byte b : pong)
-                    response.add(b);
-                System.out.println("pong:");
-                for (byte b : pong) {
-                    System.out.println(b);
-                }
-                System.out.println("Done.");
-            }
-            System.out.println("Got pong");
-            return null;
-        } catch (IOException e) {
-            return "UIException during waitForPong()";
-        }
-    }
-
-    private boolean socks5Init(Socket sock) {
-        byte[] clientSend = new byte[]{0x05, 0x1, 0x0};
-        byte[] serverRecv = new byte[2];
-        try {
-            OutputStream os = sock.getOutputStream();
-            os.write(clientSend);
-            System.out.println("Sent methods, waiting for response");
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-
-        try {
-            Vector<Byte> response = new Vector<>();
-            InputStream is = sock.getInputStream();
-            while (response.size() < 2 && is.read(serverRecv) != -1) {
-                for (Byte b : serverRecv)
-                    response.add(b);
-                System.out.println("response:");
-                for (byte b : serverRecv) {
-                    System.out.println(b);
-                }
-                System.out.println("Done.");
-            }
-            System.out.println("Received SOCKS method response");
-            if (response.elementAt(0) != 0x5 || response.elementAt(1) != 0x0)
-                return false;
-            return true;
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private String socks5Connect(Socket sock, String hostname, int port) {
-        byte[] clientSend = new byte[]{0x5,0x01,0x0,0x03};
-
-        Vector<Byte> variableReq = new Vector<>();
-        variableReq.add((byte)(hostname.length() & 0xFF));
-        for (char c : hostname.toCharArray())
-            variableReq.add(((byte) c));
-        variableReq.add((byte)((port >> 8) & 0xFF));
-        variableReq.add((byte)(port & 0xFF));
-        byte[] serverRecv = new byte[20];
-        try {
-            OutputStream os = sock.getOutputStream();
-            System.out.println("Sending SOCKS CONNECT request");
-            os.write(clientSend);
-            /* TODO This makes me really, really sad; but it isn't a hotspot */
-            System.out.println("Sending variable length request: " + variableReq);
-            for (Byte b : variableReq) {
-                os.write(b);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "Failure while writing to Tor";
-        }
-
-        try {
-            Vector<Byte> response = new Vector<>();
-            InputStream is = sock.getInputStream();
-
-            System.out.println("Receiving SOCKS CONNECT response");
-            while (response.size() < 2 && is.read(serverRecv) != -1) {
-                for (Byte b : serverRecv)
-                    response.add(b);
-                System.out.println("response:");
-                for (byte b : serverRecv) {
-                    System.out.println(b);
-                }
-                System.out.println("Done.");
-            }
-            System.out.println("Received SOCKS response");
-            if (response.elementAt(0) != 0x5)
-                return "Malformed SOCKS response from Tor";
-            switch (response.elementAt(1)) {
-                case 0x0:
-                    return null;
-                case 0x01:
-                    return "SOCKS CONNECT: General Failure";
-                case 0x02:
-                    return "SOCKS CONNECT: Connection not allowed by ruleset";
-                case 0x03:
-                    return "SOCKS CONNECT: Network unreachable";
-                case 0x04:
-                    return "SOCKS CONNECT: Host unreachable";
-                case 0x05:
-                    return "SOCKS CONNECT: Connection refused";
-                case 0x06:
-                    return "SOCKS CONNECT: TTL expired";
-                case 0x07:
-                    return "SOCKS CONNECT: Command not supported";
-                case 0x08:
-                    return "SOCKS CONNECT: Address type not supported";
-            }
-            return "Unknown error during SOCKS CONNECTS";
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "IOException while reading reponse";
-        }
-    }
-
     private class SocketActivities extends AsyncTask<String, String, Long[]> {
         //protected Instant[] doInBackground(String... inputs) {
         protected Long[] doInBackground(String... inputs) {
@@ -419,6 +186,241 @@ public class OnionServiceInfo extends AppCompatActivity {
             System.out.println("Complete RTT: " + totalTimeMilliSeconds + " seconds");
             System.out.println("First half: " + halfTimeMilliSeconds + " seconds");
             System.out.println("Second half: " + secondHalfTimeMilliSeconds + " seconds");
+        }
+
+        private ServerSocket getSocketAddress(int port) {
+            InetSocketAddress addr = new InetSocketAddress("127.0.0.1", port);
+            try {
+                ServerSocket sock = new ServerSocket();
+                sock.bind(addr);
+                return sock;
+            } catch (SecurityException e) {
+                publishProgress("SecurityException during bind()");
+                System.out.println("Received SecurityException from getSocketAddress()");
+                e.printStackTrace();
+                return null;
+            } catch (IllegalArgumentException e) {
+                /* This should never happen */
+                publishProgress("IllegalArgumentException during bind()");
+                System.out.println("Received IllegalArgumentException from getSocketAddress()");
+                e.printStackTrace();
+                return null;
+            } catch (BindException e) {
+                System.out.println("Received BindException from getSocketAddress()" +
+                        " probably already ran. Keep going.");
+            } catch (IOException e) {
+                publishProgress("IOException during bind()");
+                System.out.println("Received IOException from getSocketAddress()");
+                //ActivityCompat.requestPermissions(this, new String[]{Manifest.class.});
+                e.printStackTrace();
+                return null;
+            }
+            return null;
+        }
+
+        private Socket createSocksConnection(String host, int port,
+                                             String onionAddr, int onionPort) {
+            //Proxy socksOr = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
+            //Socket sock = new Socket(socksOr);
+            Socket sock = new Socket();
+            try {
+                System.out.println("Initiating connection to Tor");
+                sock.connect(new InetSocketAddress(host, port));
+                System.out.println("Socket connected, starting SOCKS");
+                publishProgress("We connected to Tor's SOCKS port!");
+                if (!socks5Init(sock)) {
+                    System.out.println("socks5Init returned false");
+                    publishProgress("Initial setup with Tor failed");
+                    return null;
+                }
+                System.out.println("Requesting SOCKS CONNECT");
+                if (socks5Connect(sock, onionAddr, onionPort) != null) {
+                    System.out.println("socks5Connect returned false");
+                    return null;
+                }
+                //sock.connect(new InetSocketAddress(onionAddr, onionPort));
+            } catch (IllegalBlockingModeException e) {
+                System.out.println("Received IllegalBlockingModeException from createSocksConnection()");
+                publishProgress("IllegalBlockingModeException during connect()");
+                e.printStackTrace();
+                return null;
+            } catch (IllegalArgumentException e) {
+                System.out.println("Received IllegalArgumentException from createSocksConnection()");
+                publishProgress("IllegalArgumentException during connect()");
+                e.printStackTrace();
+                return null;
+            } catch (IOException e) {
+                System.out.println("Received IOException from createSocksConnection(), " +
+                        host + ":" + port);
+                publishProgress("IOException during connect(): " + e.getMessage() +
+                        ", " + host + ":" + port);
+                e.printStackTrace();
+                return null;
+            }
+            return sock;
+        }
+
+        private String sendPing(Socket onionSock) {
+            try {
+                OutputStream os = onionSock.getOutputStream();
+                os.write(new byte[]{'p','i','n','g'});
+                os.flush();
+                return null;
+            } catch (IOException e) {
+                return "IOException during waitForPing()";
+            }
+        }
+
+        private String waitForPing(ServerSocket ss) {
+            byte[] ping = new byte[4];
+            try {
+                ss.setSoTimeout(20);
+                Socket client = ss.accept();
+                System.out.println("Got connection on onion!");
+                InputStream is = client.getInputStream();
+                OutputStream os = client.getOutputStream();
+
+                Vector<Byte> response = new Vector<>();
+                while (response.size() < 4 && is.read(ping) != -1) {
+                    for (Byte b : ping)
+                        response.add(b);
+                    System.out.println("ping:");
+                    for (byte b : ping) {
+                        System.out.println(b);
+                    }
+                    System.out.println("Done.");
+                }
+                System.out.println("Sending pong");
+                os.write(new byte[]{'p','o','n','g'});
+                return null;
+            } catch (SocketException e) {
+                return "SocketException during waitForPing()";
+            } catch (IOException e) {
+                return "IOException during waitForPing()";
+            }
+        }
+
+        private String waitForPong(Socket onionSock) {
+            byte[] pong = new byte[4];
+            try {
+                InputStream is = onionSock.getInputStream();
+                Vector<Byte> response = new Vector<>();
+                while (response.size() < 4 && is.read(pong) != -1) {
+                    for (Byte b : pong)
+                        response.add(b);
+                    System.out.println("pong:");
+                    for (byte b : pong) {
+                        System.out.println(b);
+                    }
+                    System.out.println("Done.");
+                }
+                System.out.println("Got pong");
+                return null;
+            } catch (IOException e) {
+                return "UIException during waitForPong()";
+            }
+        }
+
+        private boolean socks5Init(Socket sock) {
+            byte[] clientSend = new byte[]{0x05, 0x1, 0x0};
+            byte[] serverRecv = new byte[2];
+            try {
+                OutputStream os = sock.getOutputStream();
+                os.write(clientSend);
+                System.out.println("Sent methods, waiting for response");
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+
+            try {
+                Vector<Byte> response = new Vector<>();
+                InputStream is = sock.getInputStream();
+                while (response.size() < 2 && is.read(serverRecv) != -1) {
+                    for (Byte b : serverRecv)
+                        response.add(b);
+                    System.out.println("response:");
+                    for (byte b : serverRecv) {
+                        System.out.println(b);
+                    }
+                    System.out.println("Done.");
+                }
+                System.out.println("Received SOCKS method response");
+                if (response.elementAt(0) != 0x5 || response.elementAt(1) != 0x0)
+                    return false;
+                return true;
+            } catch (IOException e) {
+                e.printStackTrace();
+                return false;
+            }
+        }
+
+        private String socks5Connect(Socket sock, String hostname, int port) {
+            byte[] clientSend = new byte[]{0x5,0x01,0x0,0x03};
+
+            Vector<Byte> variableReq = new Vector<>();
+            variableReq.add((byte)(hostname.length() & 0xFF));
+            for (char c : hostname.toCharArray())
+                variableReq.add(((byte) c));
+            variableReq.add((byte)((port >> 8) & 0xFF));
+            variableReq.add((byte)(port & 0xFF));
+            byte[] serverRecv = new byte[20];
+            try {
+                OutputStream os = sock.getOutputStream();
+                System.out.println("Sending SOCKS CONNECT request");
+                os.write(clientSend);
+                /* TODO This makes me really, really sad; but it isn't a hotspot */
+                System.out.println("Sending variable length request: " + variableReq);
+                for (Byte b : variableReq) {
+                    os.write(b);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                return "Failure while writing to Tor";
+            }
+
+            try {
+                Vector<Byte> response = new Vector<>();
+                InputStream is = sock.getInputStream();
+
+                System.out.println("Receiving SOCKS CONNECT response");
+                while (response.size() < 2 && is.read(serverRecv) != -1) {
+                    for (Byte b : serverRecv)
+                        response.add(b);
+                    System.out.println("response:");
+                    for (byte b : serverRecv) {
+                        System.out.println(b);
+                    }
+                    System.out.println("Done.");
+                }
+                System.out.println("Received SOCKS response");
+                if (response.elementAt(0) != 0x5)
+                    return "Malformed SOCKS response from Tor";
+                switch (response.elementAt(1)) {
+                    case 0x0:
+                        return null;
+                    case 0x01:
+                        return "SOCKS CONNECT: General Failure";
+                    case 0x02:
+                        return "SOCKS CONNECT: Connection not allowed by ruleset";
+                    case 0x03:
+                        return "SOCKS CONNECT: Network unreachable";
+                    case 0x04:
+                        return "SOCKS CONNECT: Host unreachable";
+                    case 0x05:
+                        return "SOCKS CONNECT: Connection refused";
+                    case 0x06:
+                        return "SOCKS CONNECT: TTL expired";
+                    case 0x07:
+                        return "SOCKS CONNECT: Command not supported";
+                    case 0x08:
+                        return "SOCKS CONNECT: Address type not supported";
+                }
+                return "Unknown error during SOCKS CONNECTS";
+            } catch (IOException e) {
+                e.printStackTrace();
+                return "IOException while reading response";
+            }
         }
     }
 }
