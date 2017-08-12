@@ -9,6 +9,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.TextView;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,11 +29,18 @@ import java.util.Vector;
 public class OnionServiceInfo extends AppCompatActivity {
     private String mSocksHost;
     private int mSocksPort;
+    private TextView mStatusMsg;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_onion_service_info);
+        mStatusMsg = (TextView) findViewById((R.id.onion_ring_status));
+        if (mStatusMsg == null) {
+            OToaster.createToast(getApplicationContext(), "Couldn't find a good place for the status updates.");
+        } else {
+            mStatusMsg.setTextSize(18);
+        }
 
         mSocksHost = getIntent().getStringExtra("SOCKS_PROXY_HOST");
         mSocksPort = getIntent().getIntExtra("SOCKS_PROXY_PORT", 0);
@@ -50,6 +58,8 @@ public class OnionServiceInfo extends AppCompatActivity {
         onionPortRaw = editTextOnion.getText().toString();
         System.out.println("Received '" + onionPortRaw + "' from input");
         OToaster.createToast(getApplicationContext(), "Let's go!");
+        if (mStatusMsg != null)
+            mStatusMsg.setText("Let's go!\n");
 
         new SocketActivities().execute(onionAddr, onionPortRaw);
     }
@@ -67,10 +77,12 @@ public class OnionServiceInfo extends AppCompatActivity {
             String onionAddr = inputs[0];
             String onionPortRaw = inputs[1];
 
-            if (onionPortRaw == null) {
+            if (onionPortRaw == null || onionPortRaw.compareTo("") == 0) {
                 System.out.println("Onion port number is null!");
+                publishProgress("Provided port wasn't found");
                 return null;
             }
+
             int onionPort = Integer.parseInt(onionPortRaw);
 
             if (onionPort < 0 || onionPort > 65535) {
@@ -149,7 +161,10 @@ public class OnionServiceInfo extends AppCompatActivity {
         protected void onProgressUpdate(String... values) {
             if (values == null || values.length != 1)
                 return;
-            OToaster.createToast(getApplicationContext(), values[0]);
+            if (mStatusMsg != null)
+                mStatusMsg.append(values[0] + "\n");
+            else
+                OToaster.createToast(getApplicationContext(), values[0]);
         }
 
         //protected void onPostExecute(Instant[] instants) {
