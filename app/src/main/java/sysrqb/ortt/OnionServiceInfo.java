@@ -20,6 +20,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.channels.IllegalBlockingModeException;
 // API level 26
 //import java.time.Instant;
@@ -255,6 +256,8 @@ public class OnionServiceInfo extends AppCompatActivity {
                     System.out.println("socks5Connect returned false");
                     return null;
                 }
+                // Reset this so we block again
+                sock.setSoTimeout(0);
                 //sock.connect(new InetSocketAddress(onionAddr, onionPort));
             } catch (IllegalBlockingModeException e) {
                 System.out.println("Received IllegalBlockingModeException from" +
@@ -363,7 +366,7 @@ public class OnionServiceInfo extends AppCompatActivity {
             try {
                 Vector<Byte> response = new Vector<>();
                 InputStream is = sock.getInputStream();
-                while (response.size() < 2 && is.read(serverRecv) != -1) {
+                while (response.size() < 2 && is.read(serverRecv) > 0) {
                     for (Byte b : serverRecv)
                         response.add(b);
                     System.out.println("response:");
@@ -412,14 +415,24 @@ public class OnionServiceInfo extends AppCompatActivity {
                 InputStream is = sock.getInputStream();
 
                 System.out.println("Receiving SOCKS CONNECT response");
-                while (response.size() < 2 && is.read(serverRecv) != -1) {
-                    for (Byte b : serverRecv)
-                        response.add(b);
-                    System.out.println("response:");
-                    for (byte b : serverRecv) {
-                        System.out.println(b);
+                sock.setSoTimeout(30000);
+                while (response.size() < 2) {
+                    try {
+                        if (is.read(serverRecv) > 0) {
+                            for (Byte b : serverRecv)
+                                response.add(b);
+                            System.out.println("response:");
+                            for (byte b : serverRecv) {
+                                System.out.println(b);
+                            }
+                            System.out.println("Done.");
+                        } else {
+                            break;
+                        }
+                    } catch (SocketTimeoutException e) {
+                        publishProgress("We're waiting for a response from tor, " +
+                                "sorry for the wait");
                     }
-                    System.out.println("Done.");
                 }
                 System.out.println("Received SOCKS response");
                 if (response.elementAt(0) != 0x5) {
