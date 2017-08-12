@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">ORTT</string>
+    <string name="welcome_text">Welcome to ORTT</string>
+    <string name="welcome_subtext">The Onion Ring Time Trial</string>
+    <string name="go_button_text">Go!</string>
+    <string name="onion_service_addr">Paste the Onion Service Address:</string>
+    <string name="onion_service_port">Enter the Onion Service Port:</string>
+    <string name="start_button_text">Start!</string>
+    <string name="title_activity_onion_service_info">OnionServiceInfo</string>
+</resources>
