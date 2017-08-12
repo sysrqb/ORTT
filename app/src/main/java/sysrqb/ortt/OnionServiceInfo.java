@@ -195,12 +195,27 @@ public class OnionServiceInfo extends AppCompatActivity {
             long estabTimeMilliSeconds = begin - torconn;
             long halfTimeMilliSeconds = half - begin;
             long secondHalfTimeMilliSeconds = roundtrip - half;
-            long totalTimeMilliSeconds = roundtrip - torconn;
+            long totalTimeMilliSeconds = roundtrip - begin;
 
-            System.out.println("Complete RTT: " + totalTimeMilliSeconds + " milliseconds");
-            System.out.println("Circuit creation: " + estabTimeMilliSeconds + " milliseconds");
-            System.out.println("First half: " + halfTimeMilliSeconds + " milliseconds");
-            System.out.println("Second half: " + secondHalfTimeMilliSeconds + " milliseconds");
+            String result = "Circuit creation: " + estabTimeMilliSeconds + " milliseconds";
+            System.out.println(result);
+            if (mStatusMsg != null)
+                mStatusMsg.append(result + "\n");
+
+            result = "Complete RTT: " + totalTimeMilliSeconds + " milliseconds";
+            System.out.println(result);
+            if (mStatusMsg != null)
+                mStatusMsg.append(result + "\n");
+
+            result = "First half-trip: " + halfTimeMilliSeconds + " milliseconds";
+            System.out.println(result);
+            if (mStatusMsg != null)
+                mStatusMsg.append(result + "\n");
+
+            result = "Second half-trip: " + secondHalfTimeMilliSeconds + " milliseconds";
+            System.out.println(result);
+            if (mStatusMsg != null)
+                mStatusMsg.append(result + "\n");
         }
 
         private ServerSocket getSocketAddress(int port) {
