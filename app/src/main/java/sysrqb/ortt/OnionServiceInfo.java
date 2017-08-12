@@ -49,6 +49,7 @@ public class OnionServiceInfo extends AppCompatActivity {
         editTextOnion = (EditText) findViewById(R.id.onion_service_port_field);
         onionPortRaw = editTextOnion.getText().toString();
         System.out.println("Received '" + onionPortRaw + "' from input");
+        OToaster.createToast(getApplicationContext(), "Let's go!");
 
         new SocketActivities().execute(onionAddr, onionPortRaw);
     }
@@ -60,11 +61,13 @@ public class OnionServiceInfo extends AppCompatActivity {
             sock.bind(addr);
             return sock;
         } catch (SecurityException e) {
+            //OToaster.createToast(getApplicationContext(), "SecurityException during bind()");
             System.out.println("Received SecurityException from getSocketAddress()");
             e.printStackTrace();
             return null;
         } catch (IllegalArgumentException e) {
             /* This should never happen */
+            //OToaster.createToast(getApplicationContext(), "IllegalArgumentException during bind()");
             System.out.println("Received IllegalArgumentException from getSocketAddress()");
             e.printStackTrace();
             return null;
@@ -72,6 +75,7 @@ public class OnionServiceInfo extends AppCompatActivity {
             System.out.println("Received BindException from getSocketAddress()" +
                 " probably already ran. Keep going.");
         } catch (IOException e) {
+            //OToaster.createToast(getApplicationContext(), "IOException during bind()");
             System.out.println("Received IOException from getSocketAddress()");
             //ActivityCompat.requestPermissions(this, new String[]{Manifest.class.});
             e.printStackTrace();
@@ -89,44 +93,49 @@ public class OnionServiceInfo extends AppCompatActivity {
             System.out.println("Initiating connection to Tor");
             sock.connect(new InetSocketAddress(host, port));
             System.out.println("Socket connected, starting SOCKS");
+            //OToaster.createToast(getApplicationContext(), "We connected to Tor's SOCKS port!");
             if (!socks5Init(sock)) {
                 System.out.println("socks5Init returned false");
+                //OToaster.createToast(getApplicationContext(), "Initial message with Tor failed");
                 return null;
             }
             System.out.println("Requesting SOCKS CONNECT");
-            if (!socks5Connect(sock, onionAddr, onionPort)) {
+            if (socks5Connect(sock, onionAddr, onionPort) != null) {
                 System.out.println("socks5Connect returned false");
                 return null;
             }
             //sock.connect(new InetSocketAddress(onionAddr, onionPort));
         } catch (IllegalBlockingModeException e) {
             System.out.println("Received IllegalBlockingModeException from createSocksConnection()");
+            //OToaster.createToast(getApplicationContext(), "IllegalBlockingModeException during connect()");
             e.printStackTrace();
             return null;
         } catch (IllegalArgumentException e) {
             System.out.println("Received IllegalArgumentException from createSocksConnection()");
+            //OToaster.createToast(getApplicationContext(), "IllegalArgumentException during connect()");
             e.printStackTrace();
             return null;
         } catch (IOException e) {
             System.out.println("Received IOException from createSocksConnection()");
+            //OToaster.createToast(getApplicationContext(), "IOException during connect()");
             e.printStackTrace();
             return null;
         }
         return sock;
     }
 
-    private boolean sendPing(Socket onionSock) {
+    private String sendPing(Socket onionSock) {
         try {
             OutputStream os = onionSock.getOutputStream();
             os.write(new byte[]{'p','i','n','g'});
             os.flush();
-            return true;
+            return null;
         } catch (IOException e) {
-            return false;
+            return "IOException during waitForPing()";
         }
     }
 
-    private boolean waitForPing(ServerSocket ss) {
+    private String waitForPing(ServerSocket ss) {
         byte[] ping = new byte[4];
         try {
             ss.setSoTimeout(20);
@@ -147,15 +156,15 @@ public class OnionServiceInfo extends AppCompatActivity {
             }
             System.out.println("Sending pong");
             os.write(new byte[]{'p','o','n','g'});
-            return true;
+            return null;
         } catch (SocketException e) {
-            return false;
+            return "SocketException during waitForPing()";
         } catch (IOException e) {
-            return false;
+           return "IOException during waitForPing()";
         }
     }
 
-    private boolean waitForPong(Socket onionSock) {
+    private String waitForPong(Socket onionSock) {
         byte[] pong = new byte[4];
         try {
             InputStream is = onionSock.getInputStream();
@@ -170,9 +179,9 @@ public class OnionServiceInfo extends AppCompatActivity {
                 System.out.println("Done.");
             }
             System.out.println("Got pong");
-            return true;
+            return null;
         } catch (IOException e) {
-            return false;
+            return "UIException during waitForPong()";
         }
     }
 
@@ -210,7 +219,7 @@ public class OnionServiceInfo extends AppCompatActivity {
         }
     }
 
-    private boolean socks5Connect(Socket sock, String hostname, int port) {
+    private String socks5Connect(Socket sock, String hostname, int port) {
         byte[] clientSend = new byte[]{0x5,0x01,0x0,0x03};
 
         Vector<Byte> variableReq = new Vector<>();
@@ -231,7 +240,7 @@ public class OnionServiceInfo extends AppCompatActivity {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            return false;
+            return "Failure while writing to Tor";
         }
 
         try {
@@ -249,20 +258,40 @@ public class OnionServiceInfo extends AppCompatActivity {
                 System.out.println("Done.");
             }
             System.out.println("Received SOCKS response");
-            if (response.elementAt(0) != 0x5 || response.elementAt(1) != 0x0)
-                return false;
-            return true;
+            if (response.elementAt(0) != 0x5)
+                return "Malformed SOCKS response from Tor";
+            switch (response.elementAt(1)) {
+                case 0x0:
+                    return null;
+                case 0x01:
+                    return "SOCKS CONNECT: General Failure";
+                case 0x02:
+                    return "SOCKS CONNECT: Connection not allowed by ruleset";
+                case 0x03:
+                    return "SOCKS CONNECT: Network unreachable";
+                case 0x04:
+                    return "SOCKS CONNECT: Host unreachable";
+                case 0x05:
+                    return "SOCKS CONNECT: Connection refused";
+                case 0x06:
+                    return "SOCKS CONNECT: TTL expired";
+                case 0x07:
+                    return "SOCKS CONNECT: Command not supported";
+                case 0x08:
+                    return "SOCKS CONNECT: Address type not supported";
+            }
+            return "Unknown error during SOCKS CONNECTS";
         } catch (IOException e) {
             e.printStackTrace();
-            return false;
+            return "IOException while reading reponse";
         }
     }
 
-    private class SocketActivities extends AsyncTask<String, Void, Long[]> {
+    private class SocketActivities extends AsyncTask<String, String, Long[]> {
         //protected Instant[] doInBackground(String... inputs) {
         protected Long[] doInBackground(String... inputs) {
             //Instant begin, half, roundtrip;
-            Long begin, half, roundtrip;
+            Long torconn, begin, half, roundtrip;
             int count = inputs.length;
             if (count != 2) {
                 System.out.println("Got " + count + " inputs!");
@@ -290,6 +319,8 @@ public class OnionServiceInfo extends AppCompatActivity {
             }
 
             System.out.println("Creating onion service socket");
+
+            torconn = Calendar.getInstance().getTimeInMillis();
             Socket onionSock = createSocksConnection(mSocksHost, mSocksPort, onionAddr, onionPort);
             if (onionSock == null) {
                 System.out.println("Creating client socket failed. Returning.");
@@ -302,9 +333,13 @@ public class OnionServiceInfo extends AppCompatActivity {
 
             //begin = Instant.now();
             System.out.println("Saving first time point");
+            publishProgress("Ready...Set...Go!");
             begin = Calendar.getInstance().getTimeInMillis();
-            if (!sendPing(onionSock)) {
+            String resStr;
+            resStr = sendPing(onionSock);
+            if (resStr != null) {
                 System.out.println("sendPing returned false. Returning.");
+                publishProgress(resStr);
                 try {
                     ss.close();
                     onionSock.close();
@@ -312,8 +347,11 @@ public class OnionServiceInfo extends AppCompatActivity {
                 }
                 return null;
             }
-            if (!waitForPing(ss)) {
+            publishProgress("Ping!");
+            resStr = waitForPing(ss);
+            if (resStr != null) {
                 System.out.println("waitForPing returned false. Returning.");
+                publishProgress(resStr);
                 try {
                     ss.close();
                     onionSock.close();
@@ -324,8 +362,11 @@ public class OnionServiceInfo extends AppCompatActivity {
             //half = Instant.now();
             System.out.println("Saving second time point");
             half = Calendar.getInstance().getTimeInMillis();
-            if (!waitForPong(onionSock)) {
+            publishProgress("Pong!");
+            resStr = waitForPong(onionSock);
+            if (resStr != null) {
                 System.out.println("waitForPong returned false. Returning.");
+                publishProgress(resStr);
                 try {
                     ss.close();
                     onionSock.close();
@@ -338,6 +379,12 @@ public class OnionServiceInfo extends AppCompatActivity {
             roundtrip = Calendar.getInstance().getTimeInMillis();
             //return new Instant[]{begin, half, roundtrip};
             return new Long[]{begin, half, roundtrip};
+        }
+
+        protected void onProgressUpdate(String... values) {
+            if (values == null || values.length != 1)
+                return;
+            OToaster.createToast(getApplicationContext(), values[0]);
         }
 
         //protected void onPostExecute(Instant[] instants) {
@@ -369,9 +416,9 @@ public class OnionServiceInfo extends AppCompatActivity {
 
             long totalTimeMilliSeconds = roundtrip - begin;
 
-            System.out.println("RTT: " + totalTimeMilliSeconds + " seconds");
+            System.out.println("Complete RTT: " + totalTimeMilliSeconds + " seconds");
             System.out.println("First half: " + halfTimeMilliSeconds + " seconds");
-            System.out.println("RTT: " + secondHalfTimeMilliSeconds + " seconds");
+            System.out.println("Second half: " + secondHalfTimeMilliSeconds + " seconds");
         }
     }
 }

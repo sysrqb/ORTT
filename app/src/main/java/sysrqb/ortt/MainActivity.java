@@ -54,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
         } else {
             System.out.println("There aren't any apps installed that handle the intent(" +
                     uriOrbot + "): " + availableActivities.size());
+            OToaster.createToast(getApplicationContext(),
+                    "Orbot was not found, please consider installing it.");
         }
 
         /*try {
@@ -85,6 +87,9 @@ public class MainActivity extends AppCompatActivity {
                 mSocksHost = socksHost;
                 mSocksPort = data.getIntExtra(EXTRA_SOCKS_PROXY_PORT, 0);
                 haveSocksInfo = true;
+                OToaster.createToast(getApplicationContext(), "Orbot told us how to find Tor!");
+            } else {
+                OToaster.createToast(getApplicationContext(), "Response from Orbot was confused");
             }
         }
     }
