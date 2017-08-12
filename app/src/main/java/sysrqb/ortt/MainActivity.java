@@ -50,7 +50,6 @@ public class MainActivity extends AppCompatActivity {
         if (availableActivities.size() > 0) {
             orbotIntent.putExtra(orbotReqPackName, getPackageName());
             startActivityForResult(orbotIntent, ORBOT_REQUEST_CODE);
-            System.out.println("How did we get here?");
         } else {
             System.out.println("There aren't any apps installed that handle the intent(" +
                     uriOrbot + "): " + availableActivities.size());
